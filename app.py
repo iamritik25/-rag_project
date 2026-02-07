@@ -9,7 +9,7 @@ from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
 # ---------------- CONFIG ----------------
-OLLAMA_URL = "http://localhost:11434/api/generate"
+
 MODEL_NAME = "mistral"
 
 UPLOAD_DIR = "pdfs"
