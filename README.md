@@ -1,6 +1,28 @@
-👻 Agentic RAG PDF Question Answering System
+# 👻 Agentic RAG Document Q&A System
 
 Local-First • Hallucination-Safe • Session-Scoped • Agent-Driven UI
+
+---
+
+## 🧠 Architecture
+
+![Architecture](architecture_diagram.png)
+
+---
+
+## 📸 Demo
+
+### Upload + UI
+![UI](output/output1.png)
+
+### PDF Indexed
+![Indexed](output/output2.png)
+
+### Answer Generation
+![Answer](output/output3.png)
+
+---
+
 
 1. Project Overview
 =====================
