@@ -7,9 +7,11 @@ import faiss
 import numpy as np
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
 
 # ---------------- CONFIG ----------------
-
+OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "mistral"
 
 UPLOAD_DIR = "pdfs"
@@ -31,6 +33,16 @@ def load_embedder():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 embedder = load_embedder()
+# ---------------- RERANKER ----------------
+@st.cache_resource
+def load_reranker():
+    model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    model.eval()
+    return tokenizer, model
+
+rerank_tokenizer, rerank_model = load_reranker()
 
 # ---------------- PDF UTIL ----------------
 def read_pdf_text(pdf_path):
@@ -89,13 +101,48 @@ Question:
         "stream": False
     }
     r = requests.post(OLLAMA_URL, json=payload)
-    return r.json()["response"]
+    answer = r.json()["response"].strip()
+
+    # 🔒 HARD ENFORCEMENT GUARD
+    if answer.startswith("Not found in the document"):
+        return "Not found in the document."
+
+    return answer
+    
+
+def rerank_chunks(question, chunks, top_k=3):
+    pairs = [(question, chunk) for chunk in chunks]
+
+    inputs = rerank_tokenizer(
+        [q for q, c in pairs],
+        [c for q, c in pairs],
+        padding=True,
+        truncation=True,
+        return_tensors="pt"
+    )
+
+    with torch.no_grad():
+        scores = rerank_model(**inputs).logits.squeeze()
+
+    ranked_indices = torch.argsort(scores, descending=True)
+
+    return [chunks[i] for i in ranked_indices[:top_k]]
+
 
 def query_pdf(pdf_name, question):
     index, chunks = load_faiss(pdf_name)
     q_embedding = embedder.encode([question])
-    _, ids = index.search(np.array(q_embedding), k=3)
-    context = "".join([chunks[i] for i in ids[0]])
+
+    # Retrieve more candidates
+    _, ids = index.search(np.array(q_embedding), k=5)
+
+    retrieved_chunks = [chunks[i] for i in ids[0]]
+
+    # Rerank
+    reranked_chunks = rerank_chunks(question, retrieved_chunks, top_k=3)
+
+    context = "".join(reranked_chunks)
+
     return ask_ollama(context, question)
 
 # ---------------- STREAMLIT CONFIG ----------------
