@@ -5,3 +5,4 @@ pypdf
 transformers
 torch
 numpy
+requests

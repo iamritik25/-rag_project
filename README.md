@@ -203,8 +203,36 @@ Typical RAG demo ≠ production system
         ii)Easy to explain failures
 
         iii)Avoids hallucination amplification
+    
+    STEP 9️⃣ — Reranking Layer (Cross Encoder)
 
-    STEP 9️⃣ — Hallucination Prevention Layer
+    What I Did?
+
+        i)Added a cross-encoder reranker using:
+
+            cross-encoder/ms-marco-MiniLM-L-6-v2
+
+        ii)Implemented with Transformers  and PyTorch
+
+    Pipeline:
+
+        Retrieve Top-5 chunks
+        ↓
+        Cross-Encoder Reranker
+        ↓
+        Select Top-3 chunks
+        ↓
+        Send to LLM
+
+    Why?
+
+        i)Improves answer relevance
+
+        ii)Reduces retrieval noise
+
+        iii)Industry-standard RAG improvement
+
+    STEP 🔟 — Hallucination Prevention Layer
     ===========================================
     What I Did?
 
@@ -221,7 +249,7 @@ Typical RAG demo ≠ production system
 
         iii)This is how real AI systems behave
 
-    STEP 🔟 — Agentic UI (Ghost System)
+    STEP 1️⃣1️⃣ — Agentic UI (Ghost System)
     ====================================
     What I Did?
 
@@ -242,7 +270,7 @@ Typical RAG demo ≠ production system
 
         iii)Prevents blind trust
 
-    STEP 1️⃣1️⃣ — Failure Tracking
+    STEP 1️⃣2️⃣ — Failure Tracking
     ===============================
     What I Did?
 
@@ -260,7 +288,7 @@ Typical RAG demo ≠ production system
 
         iii)Encourages correct usage
 
-    STEP 1️⃣2️⃣ — Typing Animation
+    STEP 1️⃣3️⃣ — Typing Animation
     =============================
     What I Did?
 
@@ -276,7 +304,7 @@ Typical RAG demo ≠ production system
 
         iii)Professional polish
 
-    STEP 1️⃣3️⃣ — Session Lifecycle Management
+    STEP 1️⃣4️⃣ — Session Lifecycle Management
     ==========================================
     What I Did?
 
@@ -302,7 +330,7 @@ Typical RAG demo ≠ production system
 
         iii)Rarely done in demos (but critical)
 
-    STEP 1️⃣4️⃣ — Auto-Delete Embeddings on Session End
+    STEP 1️⃣5️⃣ — Auto-Delete Embeddings on Session End
     ===================================================
     What I Did?
 
@@ -320,7 +348,7 @@ Typical RAG demo ≠ production system
 
         iii)Production-grade behavior
 
-    STEP 1️⃣5️⃣ — Local-Only Enforcement
+    STEP 1️⃣6️⃣ — Local-Only Enforcement
 ===================================
     What I Did?
 
@@ -365,6 +393,9 @@ FAISS (Per-PDF Index)
  │
  ▼
 Retriever (Top-K)
+ │
+ ▼
+ Cross Encoder Reranker
  │
  ▼
 Mistral (Ollama)
