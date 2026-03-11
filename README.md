@@ -441,3 +441,7 @@ http://localhost:8501
     v)Production-ready design
 
     vi)No framework dependency illusion
+
+Note: 
+This system runs fully locally using Ollama + Mistral.
+For security and privacy reasons, the LLM is not deployed in cloud environments.
