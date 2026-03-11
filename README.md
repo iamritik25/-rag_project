@@ -442,6 +442,17 @@ http://localhost:8501
 
     vi)No framework dependency illusion
 
-Note: 
-This system runs fully locally using Ollama + Mistral.
-For security and privacy reasons, the LLM is not deployed in cloud environments.
+## ⚠️ Deployment Note
+
+This system runs **fully locally** using **Ollama + Mistral**.
+
+Because the LLM is executed through **Ollama's local inference server**, it requires a local runtime environment and cannot be deployed directly to cloud platforms.
+
+This design was intentional to ensure:
+
+• Complete data privacy  
+• Zero API dependency  
+• Offline capability  
+• Enterprise-safe document processing  
+
+To run the full system, clone the repository and execute the setup steps described above.
