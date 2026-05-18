@@ -1,458 +1,133 @@
 # 👻 Agentic RAG Document Q&A System
 
-Local-First • Hallucination-Safe • Session-Scoped • Agent-Driven UI
+> **Local-First • Hallucination-Safe • Session-Scoped • Agent-Driven UI**
 
+A fully local Retrieval-Augmented Generation (RAG) system that lets you upload PDFs and ask questions **strictly grounded in document content** — zero hallucinations, no cloud APIs, and automatic cleanup of all embeddings when the session ends.
 
-1. Project Overview
-=====================
+---
 
-This project is a fully local Retrieval-Augmented Generation (RAG) system that allows users to upload PDFs and ask questions strictly grounded in document content, with zero hallucinations, no cloud APIs, and automatic cleanup of embeddings on session end.
+## 🏗️ Architecture Overview
 
-The system behaves like an AI agent, not just a chatbot:
+The system runs two distinct pipelines: an **Indexing Pipeline** triggered on upload, and a **Query Pipeline** triggered on each question.
 
-It reacts to failures
+### High-Level System Diagram
 
-Changes UI behavior
+![High-Level Architecture](architecture_diagram.png)
 
-Prevents hallucinations
+---
 
-Manages its own memory lifecycle
+### 🔬 Full Step-by-Step Pipeline Diagram
 
-This README documents everything that was built, in the exact order it was engineered.
+> This diagram maps every function call in the codebase to the pipeline stage it belongs to.
 
-2. Initial Goal
-===================
-Original Objective:
-===================
+![Full Pipeline Diagram](pipeline_diagram.png)
 
-“Build a local PDF chatbot using Mistral and Ollama.”
+---
 
-Problems Identified Early
+## ⚙️ How the Pipeline Works (Step by Step)
 
-Hallucinated answers
+### 📥 Phase 1 — Indexing Pipeline (Triggered on PDF Upload)
 
-No document isolation
+| Step | What Happens | Code |
+|------|-------------|------|
+| **1. Upload** | User uploads one or more PDFs via Streamlit's file uploader | `st.file_uploader()` |
+| **2. Save** | PDF is written to disk in `pdfs/` if it doesn't already exist | `file.write(buffer)` |
+| **3. Text Extraction** | PyPDF reads each page and extracts raw text, skipping empty pages | `read_pdf_text()` |
+| **4. Chunking** | Text is split into overlapping windows of 500 characters with a 100-character overlap to prevent context loss at boundaries | `chunk_text(size=500, overlap=100)` |
+| **5. Embedding** | Each chunk is encoded into a 384-dimensional vector using `all-MiniLM-L6-v2` | `embedder.encode(chunks)` |
+| **6. FAISS Index** | Vectors are stored in a `FAISS IndexFlatL2` index — one separate index per PDF. Both the `.index` binary and a `.txt` chunk file are saved to `indexes/` | `faiss.write_index()` |
 
-No session cleanup
+---
 
-Embeddings persisted forever
+### 🔍 Phase 2 — Query Pipeline (Triggered on Each Question)
 
-UI gave false confidence
+| Step | What Happens | Code |
+|------|-------------|------|
+| **7. Query Embed** | The user's question is encoded into a vector using the same MiniLM model | `embedder.encode([question])` |
+| **8. FAISS Search** | Top-5 nearest chunks are retrieved from the selected PDF's FAISS index using L2 distance | `index.search(q_vec, k=5)` |
+| **9. Cross-Encoder Rerank** | All 5 (question, chunk) pairs are scored by `ms-marco-MiniLM-L-6-v2`. The model outputs relevance logits; chunks are sorted descending | `rerank_model(**inputs).logits` |
+| **10. Top-3 Assembly** | The top-3 ranked chunks are joined into a context string | `ranked_indices[:3]` |
+| **11. Mistral / Ollama** | The context + question are sent as a structured prompt to Mistral running locally via Ollama's HTTP API | `POST localhost:11434/api/generate` |
+| **12. Hallucination Guard** | If the model's answer begins with `"Not found in the document"`, it is hard-blocked and returned as-is — the model cannot override this | `startswith()` check |
+| **13. Ghost UI Reaction** | The ghost emoji reacts to system state: 😄 idle → 🤔 thinking → 😵 one failure → 😡 3+ failures → ☠️ session ended | `st.session_state.ghost_mood` |
+| **14. Typed Output** | The answer is streamed character-by-character to the UI with a 15ms delay per character | `time.sleep(0.015)` |
 
-Typical RAG demo ≠ production system
+---
 
-👉 I decided to build a production-thinking RAG system instead of a demo.
+### 🛑 Phase 3 — Session Cleanup (Triggered on "End Session")
 
-3. Step-by-Step Development Journey
-======================================
-    STEP 1️⃣ — Local LLM Setup (Ollama + Mistral)
-    =============================================
-    What I Did:
-    =============
+When the user clicks **End Session**, `cleanup_session_data()` runs:
 
-        i)Installed Ollama
+```
+pdfs/           → all uploaded PDFs deleted
+indexes/        → all FAISS indexes and chunk .txt files deleted
+session_data/   → entire directory tree wiped via shutil.rmtree()
+```
 
-        ii)Pulled Mistral
+Streamlit session state is cleared and execution halts — no data persists.
 
-        iii)Verified fully local inference
+---
 
-        iv)Run: ollama run mistral
+## 🧰 Tech Stack
 
-    Why?
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| UI | Streamlit | Rapid local UI, session state management |
+| LLM | Mistral via Ollama | Fully local, no API cost, works offline |
+| Embeddings | `all-MiniLM-L6-v2` | Fast, lightweight, strong semantic performance |
+| Reranker | `ms-marco-MiniLM-L-6-v2` | Industry-standard cross-encoder for relevance scoring |
+| Vector DB | FAISS `IndexFlatL2` | Raw control, no hidden memory, debuggable |
+| PDF Parsing | PyPDF | Clean page-by-page extraction |
+| Language | Python 3.10+ | — |
 
-        i)Zero API cost
+---
 
-        ii)No data leakage
+## 🚀 How to Run
 
-        iii)Enterprise-safe
-
-        iv)Works offline
-
-    STEP 2️⃣ — Streamlit UI Foundation
-    ==================================
-    What I Did?
-
-        i)Created app.py
-
-        ii)Built Streamlit UI
-
-        iii)Added file uploader
-
-        iv)Added question input box
-
-    Why?
-
-        i)Rapid prototyping
-
-        ii)Local UI
-
-        iii)Easy debugging
-
-        iv)Perfect for internal tools
-
-    STEP 3️⃣ — PDF Text Extraction
-    ==============================
-    What I Did?
-
-        i)Used pypdf
-
-        ii)Extracted text page-by-page
-
-        iii)Ignored empty pages
-
-    Why?
-
-        i)PDFs are messy
-
-        ii)Clean input = better embeddings
-
-        iii)Avoids junk vectors
-
-    STEP 4️⃣ — Text Chunking Strategy
-    =================================
-    What I Did?
-
-        i)Implemented manual chunking
-
-        ii)Used overlap
-
-            chunk_size = 500
-            overlap = 100
-
-    Why?
-
-        i)Prevents context loss
-
-        ii)Improves semantic retrieval
-
-        iii)Standard in production RAG
-
-    STEP 5️⃣ — Embedding Model Selection
-    ====================================
-    What I Did?
-
-        i)Chose all-MiniLM-L6-v2
-
-        ii)Loaded via SentenceTransformers
-
-    Why?
-
-        i)Fast
-
-        ii)Lightweight
-
-        iii)Strong semantic performance
-
-        iv)Local-friendly
-
-    STEP 6️⃣ — FAISS Vector Store (Manual Control)
-    ==============================================
-    What I Did?
-
-        i)Used FAISS directly
-
-        ii)No LangChain abstractions
-
-        iii)Created indexes per PDF
-
-            indexes/
-                ├── pdf1.index
-                ├── pdf1.txt
-
-    Why?
-
-        i)Full control
-
-        ii)Debuggable
-
-        iii)No hidden memory
-
-
-    STEP 7️⃣ — Multi-PDF Support
-    ============================
-    What I Did?
-
-        i)Allowed uploading multiple PDFs
-
-        ii)Created separate FAISS index per PDF
-
-        iii)Added dropdown to select which PDF to query
-
-    Why?
-
-        i)Prevents cross-document contamination
-
-        ii)Mirrors real document systems
-
-        iii)Enables focused retrieval
-
-    STEP 8️⃣ — Retrieval Logic (Top-K Search)
-    ==========================================
-    What I Did?
-
-        i)Embedded user query
-
-        ii)Retrieved top-3 chunks
-
-        iii)Assembled deterministic context
-
-    Why?
-
-        i)Predictable behavior
-
-        ii)Easy to explain failures
-
-        iii)Avoids hallucination amplification
-    
-    STEP 9️⃣ — Reranking Layer (Cross Encoder)
-
-    What I Did?
-
-        i)Added a cross-encoder reranker using:
-
-            cross-encoder/ms-marco-MiniLM-L-6-v2
-
-        ii)Implemented with Transformers  and PyTorch
-
-    Pipeline:
-
-        Retrieve Top-5 chunks
-        ↓
-        Cross-Encoder Reranker
-        ↓
-        Select Top-3 chunks
-        ↓
-        Send to LLM
-
-    Why?
-
-        i)Improves answer relevance
-
-        ii)Reduces retrieval noise
-
-        iii)Industry-standard RAG improvement
-
-    STEP 🔟 — Hallucination Prevention Layer
-    ===========================================
-    What I Did?
-
-        i)Added hard rule:
-
-        ii)If answer not in retrieved context → say
-            “Not found in the document.”
-
-    Why?
-
-        i)Correct AI > confident AI
-
-        ii)Prevents legal & factual risks
-
-        iii)This is how real AI systems behave
-
-    STEP 1️⃣1️⃣ — Agentic UI (Ghost System)
-    ====================================
-    What I Did?
-
-        i)Added ghost character to UI
-
-        ii)Ghost reacts to system state
-
-        iii)Condition	Ghost:
-            Normal	😄
-            Thinking	🤔
-            Repeated failures	😡
-            Session ended	☠️
-    Why?
-
-        i)Makes AI behavior interpretable
-
-        ii)Shows uncertainty
-
-        iii)Prevents blind trust
-
-    STEP 1️⃣2️⃣ — Failure Tracking
-    ===============================
-    What I Did?
-
-        i)Tracked repeated hallucination attempts
-
-        ii)Increased ghost anger on failures
-
-        iii)Triggered red neon pulse effect
-
-    Why?
-
-        i)AI should push back
-
-        ii)Users must see limits
-
-        iii)Encourages correct usage
-
-    STEP 1️⃣3️⃣ — Typing Animation
-    =============================
-    What I Did?
-
-        i)Streamed answer word-by-word
-
-        ii)Synced ghost behavior with typing
-
-    Why?
-
-        i)Better UX
-
-        ii)Feels alive
-
-        iii)Professional polish
-
-    STEP 1️⃣4️⃣ — Session Lifecycle Management
-    ==========================================
-    What I Did?
-
-        i)Added 🛑 End Session button
-
-        ii)On click:
-
-            Delete PDFs
-
-            Delete FAISS indexes
-
-            Delete chunk files
-
-            Clear session state
-
-            Stop execution
-
-    Why?
-
-        i)Prevents data leakage
-
-        ii)Required for compliance
-
-        iii)Rarely done in demos (but critical)
-
-    STEP 1️⃣5️⃣ — Auto-Delete Embeddings on Session End
-    ===================================================
-    What I Did?
-
-        i)Ensured no vectors persist after session
-
-        ii)No background memory
-
-        iii)Clean shutdown
-
-    Why?
-
-        i)GDPR-safe design
-
-        ii)Prevents accidental reuse
-
-        iii)Production-grade behavior
-
-    STEP 1️⃣6️⃣ — Local-Only Enforcement
-===================================
-    What I Did?
-
-        i)Avoided network exposure
-
-        ii)Focused on localhost
-
-        iii)Ignored network URL display
-
-    Why?
-
-        i)Privacy
-
-        ii)Security
-
-        iii)Internal tool mindset
-
-4. Final Architecture Diagram
-==============================
-
-User
- │
- ▼
-Streamlit UI (Agent Controller)
- │
- ├── PDF Upload
- ├── PDF Selector
- ├── Ghost Agent
- ├── Session Control
- │
- ▼
-PDF Parsing (PyPDF)
- │
- ▼
-Chunking
- │
- ▼
-Embeddings (MiniLM)
- │
- ▼
-FAISS (Per-PDF Index)
- │
- ▼
-Retriever (Top-K)
- │
- ▼
- Cross Encoder Reranker
- │
- ▼
-Mistral (Ollama)
- │
- ▼
-Hallucination Guard
- │
- ▼
-Typed Answer + Agent Reaction
-
-5. Tech Stack
-===============
-    i)Layer:    Technology
-    ii)UI:      Streamlit
-    iii)LLM:    Mistral (Ollama)
-    iv)Embeddings: SentenceTransformers
-    v)Vector DB:  FAISS
-    vi)PDF Parsing: PyPDF
-    vii)Language:	Python
-
-6. How to Run
-================
+```bash
+# 1. Install dependencies
 pip install -r requirement.txt
+
+# 2. Start Ollama with Mistral
 ollama run mistral
+
+# 3. Launch the app
 streamlit run app.py
+```
 
+Open: [http://localhost:8501](http://localhost:8501)
 
-Open:
+---
 
-http://localhost:8501
+## 🔒 Security & Privacy Design
 
-7. What This Project Proves
-=============================
+- **All inference is local** — no data ever leaves your machine
+- **No cloud API calls** — Ollama runs entirely on `localhost:11434`
+- **Session-scoped storage** — all PDFs and embeddings are deleted on session end
+- **Hallucination guard** — model cannot fabricate answers not found in the document
+- **`.gitignore` enforced** — `pdfs/`, `indexes/`, and `session_data/` are never committed to Git
 
-    i)Deep RAG understanding
-
-    ii)Agentic system thinking
-
-    iii)AI safety awareness
-
-    iv)Memory lifecycle control
-
-    v)Production-ready design
-
-    vi)No framework dependency illusion
+---
 
 ## ⚠️ Deployment Note
 
-This system runs **fully locally** using **Ollama + Mistral**.
+This system runs **fully locally** using **Ollama + Mistral** and requires a local runtime environment. It cannot be deployed directly to cloud platforms without replacing the Ollama layer with a cloud LLM API.
 
-Because the LLM is executed through **Ollama's local inference server**, it requires a local runtime environment and cannot be deployed directly to cloud platforms.
+This design was intentional to ensure complete data privacy, zero API dependency, offline capability, and enterprise-safe document processing.
 
-This design was intentional to ensure:
+---
 
-• Complete data privacy  
-• Zero API dependency  
-• Offline capability  
-• Enterprise-safe document processing  
+## 📁 Project Structure
 
-To run the full system, clone the repository and execute the setup steps described above.
+```
+agentic_rag1/
+├── app.py                  # Full application — both pipelines
+├── requirement.txt         # Pinned dependencies
+├── .gitignore              # Excludes pdfs/, indexes/, session_data/, venv
+├── architecture_diagram.png   # High-level system overview
+├── pipeline_diagram.png       # Step-by-step full pipeline diagram
+├── README.md
+├── pdfs/                   # [gitignored] Uploaded PDFs (runtime only)
+├── indexes/                # [gitignored] FAISS indexes (runtime only)
+└── session_data/           # [gitignored] Orphaned artifacts (auto-cleaned)
+```
