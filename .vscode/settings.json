@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": "c:\\Users\\mynam\\OneDrive\Desktop\\agentic_rag1\\venv_agentic\\Scripts\\python.exe",
+    "python.defaultInterpreterPath": "c:\\Users\\mynam\\OneDrive\\Desktop\\agentic_rag1\\venv_agentic\\Scripts\\python.exe",
     "python.pythonPath": "c:\\Users\\mynam\\OneDrive\\Desktop\\agentic_rag1\\venv_agentic\\Scripts\\python.exe",
     "python.analysis.extraPaths": [
         "c:\\Users\\mynam\\OneDrive\\Desktop\\agentic_rag1\\venv_agentic\\Lib\\site-packages"
