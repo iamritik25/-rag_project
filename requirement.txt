@@ -1,8 +1,8 @@
-streamlit
-faiss-cpu
-sentence-transformers
-pypdf
-transformers
-torch
-numpy
-requests
+streamlit>=1.32.0
+faiss-cpu>=1.7.4
+sentence-transformers>=2.6.1
+pypdf>=4.1.0
+transformers>=4.38.2
+torch>=2.2.0
+numpy>=1.26.0
+requests>=2.31.0

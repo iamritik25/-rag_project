@@ -1,0 +1,39 @@
+# ── Virtual Environments ──────────────────────────────────────────────────────
+venv_agentic/
+venv/
+.venv/
+env/
+
+# ── Python Cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── User Data (PDFs, FAISS indexes, chunk files) ─────────────────────────────
+pdfs/
+indexes/
+session_data/
+temp_uploads/
+
+# ── Output / Screenshots ──────────────────────────────────────────────────────
+output/
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Secrets / Environment ─────────────────────────────────────────────────────
+.env
+.env.*
+secrets.toml

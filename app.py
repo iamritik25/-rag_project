@@ -1,6 +1,6 @@
 import os
 import time
-import random
+import shutil
 import requests
 import streamlit as st
 import faiss
@@ -20,12 +20,35 @@ INDEX_DIR = "indexes"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
+# ── Extra data directories that also need cleanup ──
+SESSION_DATA_DIR = "session_data"
+
 # ---------------- CLEANUP ----------------
+def _safe_remove(path):
+    """Remove a file without crashing if it's locked or already gone."""
+    try:
+        os.remove(path)
+    except Exception as e:
+        st.warning(f"Could not delete {path}: {e}")
+
+def _safe_rmdir(directory):
+    """Remove a whole directory tree without crashing."""
+    try:
+        shutil.rmtree(directory, ignore_errors=True)
+    except Exception as e:
+        st.warning(f"Could not delete directory {directory}: {e}")
+
 def cleanup_session_data():
-    for f in os.listdir(INDEX_DIR):
-        os.remove(os.path.join(INDEX_DIR, f))
-    for f in os.listdir(UPLOAD_DIR):
-        os.remove(os.path.join(UPLOAD_DIR, f))
+    """Delete all user data: uploaded PDFs, FAISS indexes, and session artifacts."""
+    # Primary index and upload directories
+    for directory in [INDEX_DIR, UPLOAD_DIR]:
+        for f in os.listdir(directory):
+            _safe_remove(os.path.join(directory, f))
+
+    # session_data/ and all its subdirectories (faiss_indexes/, chunks, etc.)
+    if os.path.exists(SESSION_DATA_DIR):
+        _safe_rmdir(SESSION_DATA_DIR)
+        os.makedirs(SESSION_DATA_DIR, exist_ok=True)  # recreate empty dir
 
 # ---------------- EMBEDDING MODEL ----------------
 @st.cache_resource
@@ -100,8 +123,24 @@ Question:
         "prompt": prompt,
         "stream": False
     }
-    r = requests.post(OLLAMA_URL, json=payload)
-    answer = r.json()["response"].strip()
+
+    # ── Error handling: Ollama may not be running ──────────────────────────────
+    try:
+        r = requests.post(OLLAMA_URL, json=payload, timeout=60)
+        r.raise_for_status()  # catch HTTP 4xx / 5xx errors
+        data = r.json()
+    except requests.exceptions.ConnectionError:
+        return "⚠️ Ollama is not running. Please start it with: `ollama run mistral`"
+    except requests.exceptions.Timeout:
+        return "⚠️ Ollama timed out. The model may be loading — please try again."
+    except requests.exceptions.HTTPError as e:
+        return f"⚠️ Ollama returned an error: {e}"
+    except Exception as e:
+        return f"⚠️ Unexpected error contacting Ollama: {e}"
+
+    answer = data.get("response", "").strip()
+    if not answer:
+        return "⚠️ Ollama returned an empty response."
 
     # 🔒 HARD ENFORCEMENT GUARD
     if answer.startswith("Not found in the document"):
