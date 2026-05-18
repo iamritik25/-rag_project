@@ -1,6 +1,11 @@
 {
-    "python.defaultInterpreterPath": "${workspaceFolder}/venv_agentic/Scripts/python.exe",
+    "python.defaultInterpreterPath": "c:\\Users\\mynam\\OneDrive\Desktop\\agentic_rag1\\venv_agentic\\Scripts\\python.exe",
+    "python.pythonPath": "c:\\Users\\mynam\\OneDrive\\Desktop\\agentic_rag1\\venv_agentic\\Scripts\\python.exe",
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/venv_agentic/Lib/site-packages"
-    ]
+        "c:\\Users\\mynam\\OneDrive\\Desktop\\agentic_rag1\\venv_agentic\\Lib\\site-packages"
+    ],
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportUndefinedVariable": "warning"
+    }
 }
