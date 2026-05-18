@@ -401,13 +401,13 @@ if indexed_pdfs:
             st.session_state.fail_count = 0
             st.session_state.ghost_mood = "😄"
 
-        # ---- Typing animation ----
+        # ── Optimized Native UX Word-Streaming Generator ──
+        def response_word_generator(text_body):
+            for word in text_body.split(" "):
+                yield word + " "
+                time.sleep(0.03)
+
         st.markdown("### 👻 Answer")
-        placeholder = st.empty()
-        typed = ""
-        for ch in answer:
-            typed += ch
-            placeholder.markdown(typed)
-            time.sleep(0.015)
+        st.write_stream(response_word_generator(answer))
 else:
     st.info("Upload PDFs to begin.")
