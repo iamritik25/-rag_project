@@ -127,6 +127,12 @@ def load_faiss(pdf_name):
         chunks = f.readlines()
     return index, chunks
 
+# ── RAM Cache Layer for Loaded FAISS Indices ──
+@st.cache_resource(max_entries=10, ttl=1800)
+def cached_load_faiss(pdf_name):
+    """Caches loaded FAISS indexes and raw chunks in RAM to avoid recurring disk I/O lag."""
+    return load_faiss(pdf_name)
+
 # ---------------- QUERY ----------------
 def ask_ollama(context, question):
     prompt = f"""
@@ -198,7 +204,7 @@ def rerank_chunks(question, chunks, top_k=3):
 
 
 def query_pdf(pdf_name, question):
-    index, chunks = load_faiss(pdf_name)
+    index, chunks = cached_load_faiss(pdf_name)  # <-- Uses RAM-cached loader!
     q_embedding = embedder.encode([question])
 
     # Retrieve more candidates
