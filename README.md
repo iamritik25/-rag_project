@@ -117,6 +117,42 @@ This design was intentional to ensure complete data privacy, zero API dependency
 
 ---
 
+## 🗺️ Next-Generation AI Features Roadmap (Production-Grade RAG)
+
+To transition this local-first architecture into a highly robust, enterprise-ready RAG system, the following features are planned for future iterations:
+
+### 1. 🔍 Hybrid Retrieval (Sparse + Dense Fusion)
+* **The Problem**: Dense vector search (FAISS) matches *concepts* well, but often fails on exact keyword matching, serial numbers, specific names, or product codes.
+* **The Solution**: Query a local sparse keyword ranker (BM25) and the FAISS dense ranker in parallel, then merge their results using **Reciprocal Rank Fusion (RRF)**.
+* **Impact**: Ensures perfect keyword matching alongside strong semantic understanding.
+
+### 2. 🔄 Self-RAG (Self-Correction & Agentic Grading Loop)
+* **The Problem**: Standard RAG is a passive chain that blindly forwards retrieved chunks to the LLM, leaving the system vulnerable to irrelevant context and hallucinations.
+* **The Solution**: Wrap the pipeline in an active self-correcting agent loop:
+  * **Document Grader**: Verify retrieved chunks are relevant to the query. If they are not, automatically rewrite/expand the query and search again.
+  * **Hallucination Grader**: Verify the generated LLM response is strictly grounded in the retrieved facts.
+  * **Answer Utility Grader**: Verify the response fully answers the user's question.
+* **Impact**: Drastically reduces hallucination rates and makes the system truly "agentic".
+
+### 3. 🌳 Hierarchical Retrieval (Parent-Child Chunking)
+* **The Problem**: Small chunks (e.g., 200 characters) yield highly accurate semantic vector matches but lack complete context. Large chunks (e.g., 2000 characters) provide full context but dilute embedding similarity.
+* **The Solution**: Split the document hierarchically. Store and embed smaller **Child Chunks** for high-precision semantic search, but when a match is found, retrieve and pass the corresponding **Parent Chunk** to the LLM.
+* **Impact**: Delivers high-accuracy matching without losing context depth.
+
+### 4. 📊 Performance & Retrieval Dashboard
+* **The Problem**: The user has zero visibility into how the RAG system made its retrieval decisions or what the latency bottleneck is.
+* **The Solution**: Build an interactive dashboard in the Streamlit sidebar displaying:
+  * **Latency Breakdown**: Time spent on embedding generation, vector search, cross-encoder reranking, and LLM token generation.
+  * **Retrieval Confidence**: Real-time progress bars showing similarity/relevance scores for retrieved chunks.
+* **Impact**: Provides full transparency and developer observability.
+
+### 5. 🖼️ Multi-Modal Chart & Table RAG
+* **The Problem**: Crucial technical information stored inside PDF charts, figures, and complex tables is completely skipped by traditional raw text parsers.
+* **The Solution**: Extract pages as images and use a local multi-modal model (like `llama3.2-vision` via Ollama) to index and explain visual figures.
+* **Impact**: Enables complete document coverage, bridging the gap between unstructured text and visual charts.
+
+---
+
 ## 📁 Project Structure
 
 ```
