@@ -69,14 +69,20 @@ rerank_tokenizer, rerank_model = load_reranker()
 
 # ---------------- PDF UTIL ----------------
 def read_pdf_text(pdf_path):
-    reader = PdfReader(pdf_path)
-    text = ""
-    for page in reader.pages:
-        if page.extract_text():
-            text += page.extract_text() + "\n"
-    return text
+    try:
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            if page.extract_text():
+                text += page.extract_text() + "\n"
+        return text.strip()
+    except Exception as e:
+        st.error(f"⚠️ Failed to parse PDF file ({os.path.basename(pdf_path)}): {e}")
+        return ""
 
 def chunk_text(text, chunk_size=500, overlap=100):
+    if not text:
+        return []
     chunks = []
     start = 0
     while start < len(text):
@@ -87,7 +93,13 @@ def chunk_text(text, chunk_size=500, overlap=100):
 
 # ---------------- FAISS ----------------
 def build_faiss(chunks, pdf_name):
+    if not chunks:
+        raise ValueError("Cannot build FAISS index: Chunk list is empty. The document may be empty or contain only non-OCR scanned images.")
+        
     embeddings = embedder.encode(chunks)
+    if embeddings is None or len(embeddings) == 0:
+        raise ValueError("Cannot build FAISS index: Embedding generator returned zero vectors.")
+        
     dim = embeddings.shape[1]
 
     index = faiss.IndexFlatL2(dim)
@@ -306,11 +318,31 @@ if uploaded_files:
         if not os.path.exists(path):
             with open(path, "wb") as f:
                 f.write(file.getbuffer())
-            with st.spinner(f"Indexing {file.name}..."):
-                text = read_pdf_text(path)
-                chunks = chunk_text(text)
-                build_faiss(chunks, file.name)
-    st.success("✅ PDFs indexed successfully")
+            
+            success = False
+            try:
+                with st.spinner(f"Indexing {file.name}..."):
+                    text = read_pdf_text(path)
+                    chunks = chunk_text(text)
+                    build_faiss(chunks, file.name)
+                success = True
+            except Exception as e:
+                # ── Rollback: Delete half-baked or empty/invalid files ──
+                if os.path.exists(path):
+                    os.remove(path)
+                
+                # Delete any invalid indexes or chunk lists that were partially created
+                idx_path = f"{INDEX_DIR}/{file.name}.index"
+                txt_path = f"{INDEX_DIR}/{file.name}.txt"
+                if os.path.exists(idx_path):
+                    os.remove(idx_path)
+                if os.path.exists(txt_path):
+                    os.remove(txt_path)
+                    
+                st.error(f"❌ Failed to index **{file.name}**: {e}")
+            
+            if success:
+                st.success(f"✅ Indexed **{file.name}** successfully")
 
 # ---------------- SELECT + ASK ----------------
 indexed_pdfs = [f.replace(".index", "") for f in os.listdir(INDEX_DIR) if f.endswith(".index")]
