@@ -62,10 +62,20 @@ def load_reranker():
     model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    
+    # ── Dynamic Hardware Acceleration (CUDA / MPS / CPU) ──
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+        
+    model = model.to(device)
     model.eval()
-    return tokenizer, model
+    return tokenizer, model, device
 
-rerank_tokenizer, rerank_model = load_reranker()
+rerank_tokenizer, rerank_model, rerank_device = load_reranker()
 
 # ---------------- PDF UTIL ----------------
 def read_pdf_text(pdf_path):
@@ -172,9 +182,16 @@ def rerank_chunks(question, chunks, top_k=3):
         return_tensors="pt"
     )
 
-    with torch.no_grad():
-        scores = rerank_model(**inputs).logits.squeeze()
+    # ── Match tensor storage device to Reranker model device ──
+    inputs = {k: v.to(rerank_device) for k, v in inputs.items()}
 
+    with torch.no_grad():
+        logits = rerank_model(**inputs).logits
+        # Handle single vs batch squeezed logits safely
+        scores = logits.squeeze() if logits.numel() > 1 else logits
+
+    # Move scores back to CPU for numpy arg sorting
+    scores = scores.cpu()
     ranked_indices = torch.argsort(scores, descending=True)
 
     return [chunks[i] for i in ranked_indices[:top_k]]
